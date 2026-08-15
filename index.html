@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="description" content="Point your camera at a puzzle. Puzzle Solver+ solves it on your device — no account, no upload, no internet.">
+<title>Puzzle Solver+</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧩</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="iconbtn" id="backBtn" hidden aria-label="Back">←</button>
+  <div class="brand">Puzzle&nbsp;Solver<span class="plus">+</span></div>
+  <div class="badge" title="Nothing you scan ever leaves this device">on‑device</div>
+</header>
+
+<main>
+
+  <!-- ───────────────────────── HOME ───────────────────────── -->
+  <section class="screen active" id="screen-home">
+    <div class="hero">
+      <h1>Point your camera at a puzzle.<br><em>We'll solve it.</em></h1>
+      <p class="sub">Recognition and solving both run locally. No account, no upload, works on a plane.</p>
+      <button class="primary big" data-scan="auto">📷&nbsp; Scan Puzzle</button>
+    </div>
+
+    <div class="cards">
+      <article class="card">
+        <div class="cardtop"><span class="glyph">🔢</span><h2>Sudoku</h2></div>
+        <p>Finds the grid, straightens the photo, reads the clues, then solves it exactly — and tells you if the puzzle has more than one answer.</p>
+        <div class="cardbtns">
+          <button class="primary" data-scan="sudoku">Scan</button>
+          <button class="ghost" data-manual="sudoku">Type it in</button>
+        </div>
+      </article>
+      <article class="card">
+        <div class="cardtop"><span class="glyph">🔤</span><h2>Word Search</h2></div>
+        <p>Rebuilds the letter lattice from the photo, then finds every word in all eight directions. Misread letters are marked so you can fix them in one tap.</p>
+        <div class="cardbtns">
+          <button class="primary" data-scan="wordsearch">Scan</button>
+          <button class="ghost" data-manual="wordsearch">Type it in</button>
+        </div>
+      </article>
+    </div>
+
+    <div class="soon">
+      <span class="soonlabel">Next up</span>
+      <span class="chip">🧠 Crossword</span>
+      <span class="chip">🟦 Rubik's Cube</span>
+      <span class="chip">🔲 Nonogram</span>
+      <span class="chip">➕ KenKen</span>
+      <span class="chip">🔡 Cryptogram</span>
+    </div>
+
+    <section class="history" id="historyWrap" hidden>
+      <h3>Recent</h3>
+      <div id="historyList" class="historylist"></div>
+      <button class="linkbtn" id="clearHistory">Clear history</button>
+    </section>
+  </section>
+
+  <!-- ───────────────────────── SCAN ───────────────────────── -->
+  <section class="screen" id="screen-scan">
+    <div class="scanstep" id="scanStep" hidden>
+      <span class="stepnum" id="scanStepNum">1 / 2</span>
+      <span id="scanStepText">Photograph the letter grid</span>
+      <button class="linkbtn" id="skipStep" hidden>Skip</button>
+    </div>
+    <div class="stage" id="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="stagemsg" id="stageMsg">Starting camera…</div>
+    </div>
+
+    <div class="scanbar">
+      <button class="ghost" id="uploadBtn">🖼️ Photo</button>
+      <button class="shutter" id="shutterBtn" aria-label="Capture"></button>
+      <button class="ghost" id="typeBtn">⌨️ Type</button>
+    </div>
+    <label class="toggle"><input type="checkbox" id="autoCapture" checked> Auto‑capture when the grid is locked</label>
+    <input type="file" id="fileInput" accept="image/*" hidden>
+  </section>
+
+  <!-- ──────────────────────── REVIEW ──────────────────────── -->
+  <section class="screen" id="screen-review">
+    <div class="reviewhead">
+      <h2 id="reviewTitle">Check the read</h2>
+      <p class="sub" id="reviewSub">Amber cells are the ones the scanner was least sure about.</p>
+    </div>
+    <div class="reviewgrid">
+      <div class="reviewmain" id="reviewMain"></div>
+      <aside class="reviewside">
+        <div class="steps" id="stepsList"></div>
+        <canvas id="warpPreview" class="warppreview" hidden></canvas>
+        <div id="wordsPanel" hidden>
+          <label class="fieldlabel" for="wordsInput">Words to find <span class="hintlabel">one per line</span></label>
+          <textarea id="wordsInput" rows="9" placeholder="APPLE&#10;ORANGE&#10;BANANA"></textarea>
+          <div class="banktools">
+            <button class="ghost" id="scanBankBtn">📷 Scan word list</button>
+            <button class="ghost" id="uploadBankBtn">🖼️ Photo</button>
+          </div>
+          <input type="file" id="bankFileInput" accept="image/*" hidden>
+        </div>
+        <div class="sidebtns">
+          <button class="primary" id="solveBtn">Solve</button>
+          <button class="ghost" id="hintBtn" hidden>Hint</button>
+          <button class="ghost" id="rescanBtn">Rescan</button>
+        </div>
+        <div class="notice" id="reviewNotice" hidden></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ──────────────────────── RESULT ──────────────────────── -->
+  <section class="screen" id="screen-result">
+    <div class="resulthead">
+      <h2 id="resultTitle">Solved</h2>
+      <div class="stat" id="resultStat"></div>
+    </div>
+    <div class="resultbody" id="resultBody"></div>
+    <div class="resultbtns">
+      <button class="primary" data-scan="auto">Scan another</button>
+      <button class="ghost" id="editBtn">Back to grid</button>
+      <button class="ghost" id="copyBtn">Copy</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- Single unobtrusive banner. Drop an AdSense / AdMob unit in here and nothing
+     else about the app changes: no interstitials, no gates, no rewarded video. -->
+<footer class="adbar" id="adbar">
+  <div class="adslot">
+    <span class="adtag">ad</span>
+    <span class="adcopy">Banner slot — 320×50. Everything in the app stays free.</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/vision.js"></script>
+<script src="js/ocr.js"></script>
+<script src="js/sudoku.js"></script>
+<script src="js/wordsearch.js"></script>
+<script src="js/scan.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

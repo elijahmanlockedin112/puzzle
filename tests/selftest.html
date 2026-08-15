@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Puzzle Solver+ · self test</title>
+<style>
+  body{font:13px/1.55 ui-monospace,Consolas,monospace;background:#0b0d12;color:#e8ecf5;margin:0;padding:24px}
+  h1{font-size:18px}
+  h2{font-size:14px;color:#8b95ad;text-transform:uppercase;letter-spacing:.08em;margin:26px 0 10px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px}
+  figure{margin:0}
+  figcaption{color:#8b95ad;font-size:11px;margin-top:4px}
+  canvas{border:1px solid #252b3d;border-radius:8px;max-width:300px;background:#fff}
+  .pass{color:#34d399}.fail{color:#f87171}.warn{color:#f5b544}
+  pre{background:#151926;border:1px solid #252b3d;border-radius:8px;padding:12px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>Puzzle Solver+ — pipeline test</h1>
+<p>Renders puzzles the way a phone actually sees them — page tilt, a shadow gradient,
+sensor noise, a title and word bank in frame, and pen circles over the words already
+found — then pushes each through the real scan pipeline.</p>
+<div class="row" id="canvases"></div>
+<pre id="out">running…</pre>
+
+<script src="../js/vision.js"></script>
+<script src="../js/ocr.js"></script>
+<script src="../js/sudoku.js"></script>
+<script src="../js/wordsearch.js"></script>
+<script src="../js/scan.js"></script>
+<script>
+const out = [];
+let failures = 0;
+function log(s, cls){ if(cls==='fail') failures++; out.push(cls ? `<span class="${cls}">${s}</span>` : s); }
+function grade(pct, good, ok){ return pct>=good ? 'pass' : pct>=ok ? 'warn' : 'fail'; }
+
+const PUZZLE = [
+  [5,3,0,0,7,0,0,0,0],[6,0,0,1,9,5,0,0,0],[0,9,8,0,0,0,0,6,0],
+  [8,0,0,0,6,0,0,0,3],[4,0,0,8,0,3,0,0,1],[7,0,0,0,2,0,0,0,6],
+  [0,6,0,0,0,0,2,8,0],[0,0,0,4,1,9,0,0,5],[0,0,0,0,8,0,0,7,9]
+];
+
+const WS_ROWS = [
+  'CATSDOGXPM','OTREEBIRDQ','WXMOUSEDLV','SUNFISHQZT','ZPLANTKMRB',
+  'BIRDVWXYNC','HORSEQJKAF','FROGLMNPUE','TIGERWSVDH','KOALAXYZBN'
+];
+const WS_WORDS = ['CATS','TREE','MOUSE','SUNFISH','PLANT','BIRD','HORSE','FROG','TIGER','KOALA','ZEBRA'];
+
+/* ---------- photo-realism helpers ---------- */
+
+function photograph(src, opts){
+  opts = opts || {};
+  const tilt = (opts.tiltDeg || 0) * Math.PI/180;
+  const pad = 28;
+  const c = document.createElement('canvas');
+  c.width = src.width + pad*2; c.height = src.height + pad*2;
+  const g = c.getContext('2d', {willReadFrequently:true});
+  g.fillStyle = '#efece6'; g.fillRect(0,0,c.width,c.height);
+  g.save();
+  g.translate(c.width/2, c.height/2);
+  g.rotate(tilt);
+  g.drawImage(src, -src.width/2, -src.height/2);
+  g.restore();
+
+  // uneven lighting: a soft diagonal shadow across the page
+  if (opts.shadow !== false){
+    const grad = g.createLinearGradient(0,0,c.width,c.height);
+    grad.addColorStop(0,'rgba(0,0,0,0)');
+    grad.addColorStop(0.62,'rgba(0,0,0,0.07)');
+    grad.addColorStop(1,'rgba(10,10,30,0.26)');
+    g.fillStyle = grad; g.fillRect(0,0,c.width,c.height);
+  }
+  // sensor noise
+  if (opts.noise !== false){
+    const id = g.getImageData(0,0,c.width,c.height);
+    const d = id.data;
+    for(let i=0;i<d.length;i+=4){
+      const n = (Math.random()-0.5)*opts.noiseAmt || (Math.random()-0.5)*16;
+      d[i]+=n; d[i+1]+=n; d[i+2]+=n;
+    }
+    g.putImageData(id,0,0);
+  }
+  return c;
+}
+
+function drawSudokuPage(font, handFilled){
+  const S=560, pad=44;
+  const c=document.createElement('canvas');
+  c.width=c.height=S+pad*2;
+  const g=c.getContext('2d');
+  g.fillStyle='#fdfcf9'; g.fillRect(0,0,c.width,c.height);
+  g.translate(pad,pad);
+  g.strokeStyle='#15151d';
+  for(let i=0;i<=9;i++){
+    g.lineWidth=i%3===0?3.2:1.1;
+    g.beginPath(); g.moveTo(i*S/9,0); g.lineTo(i*S/9,S); g.stroke();
+    g.beginPath(); g.moveTo(0,i*S/9); g.lineTo(S,i*S/9); g.stroke();
+  }
+  g.textAlign='center'; g.textBaseline='middle';
+  for(let r=0;r<9;r++) for(let col=0;col<9;col++){
+    if(!PUZZLE[r][col]) continue;
+    g.fillStyle='#101018'; g.font=font;
+    g.fillText(String(PUZZLE[r][col]), (col+0.5)*S/9, (r+0.5)*S/9);
+  }
+  // a few cells already worked out in blue pen, plus pencilled candidate notes
+  if(handFilled){
+    const SOLVED=[[0,2,4],[0,3,6],[1,1,7],[2,0,1],[3,1,5],[4,1,2]];
+    g.fillStyle='#1b3f9c'; g.font='400 30px "Segoe Script", "Comic Sans MS", cursive';
+    SOLVED.forEach(([r,col,v]) => g.fillText(String(v), (col+0.5)*S/9, (r+0.5)*S/9));
+    g.fillStyle='#8a8a92'; g.font='400 11px Arial';
+    [[6,0],[6,2],[7,1]].forEach(([r,col]) => {
+      g.fillText('1 4', (col+0.35)*S/9, (r+0.25)*S/9);
+      g.fillText('7 9', (col+0.35)*S/9, (r+0.45)*S/9);
+    });
+    return {canvas:c, solved:SOLVED};
+  }
+  return {canvas:c, solved:[]};
+}
+
+/* Full page: title, grid, word bank underneath, pen circles on found words. */
+function drawWordSearchPage(opts){
+  opts = opts||{};
+  const cell=44, pad=34, R=WS_ROWS.length, C=WS_ROWS[0].length;
+  const gridW=C*cell, gridH=R*cell;
+  const titleH=54, bankH=opts.bank===false?0:110;
+  const c=document.createElement('canvas');
+  c.width=gridW+pad*2; c.height=titleH+gridH+bankH+pad*2;
+  const g=c.getContext('2d');
+  g.fillStyle='#fdfcf9'; g.fillRect(0,0,c.width,c.height);
+  g.textAlign='center'; g.textBaseline='middle';
+
+  g.fillStyle='#101018'; g.font='700 26px Georgia, serif';
+  g.fillText('ANIMAL WORD SEARCH', c.width/2, pad+16);
+
+  g.font=(opts.font||'400 27px Arial, sans-serif');
+  for(let r=0;r<R;r++) for(let col=0;col<C;col++){
+    g.fillStyle='#14141c';
+    g.fillText(WS_ROWS[r][col], pad+(col+0.5)*cell, pad+titleH+(r+0.5)*cell);
+  }
+
+  if(opts.bank!==false){
+    g.font='400 20px Arial, sans-serif';
+    const perRow=4, y0=pad+titleH+gridH+26;
+    WS_WORDS.forEach((w,i)=>{
+      const col=i%perRow, row=(i/perRow)|0;
+      g.fillStyle='#14141c';
+      g.fillText(w, pad+(col+0.5)*(gridW/perRow), y0+row*30);
+    });
+  }
+
+  // words already found, ringed in pen — these must not break the letter read
+  if(opts.circled){
+    g.strokeStyle='rgba(30,80,200,.85)'; g.lineWidth=3.4; g.lineCap='round';
+    const rings=[[0,0,3,0],[1,1,4,1],[8,0,4,0]]; // r,c,len,dir(0=right)
+    rings.forEach(([r,col,len])=>{
+      const x=pad+col*cell, y=pad+titleH+r*cell;
+      g.beginPath();
+      g.ellipse(x+len*cell/2+cell/2-cell/2+len*cell/2*0, y+cell/2, 0,0,0,0,0);
+      g.closePath();
+      // rounded capsule around the run
+      const x0=x+4, x1=x+len*cell+cell-4, cy=y+cell/2, rr=cell*0.46;
+      g.beginPath();
+      g.moveTo(x0+rr, cy-rr);
+      g.lineTo(x1-rr, cy-rr);
+      g.arc(x1-rr, cy, rr, -Math.PI/2, Math.PI/2);
+      g.lineTo(x0+rr, cy+rr);
+      g.arc(x0+rr, cy, rr, Math.PI/2, -Math.PI/2);
+      g.stroke();
+    });
+  }
+  return c;
+}
+
+function drawWordBankPage(){
+  const c=document.createElement('canvas');
+  c.width=520; c.height=210;
+  const g=c.getContext('2d');
+  g.fillStyle='#fdfcf9'; g.fillRect(0,0,c.width,c.height);
+  g.textAlign='left'; g.textBaseline='middle';
+  g.fillStyle='#101018'; g.font='700 22px Georgia, serif';
+  g.fillText('Word Bank', 26, 30);
+  g.font='400 22px Arial, sans-serif';
+  const perRow=3;
+  WS_WORDS.forEach((w,i)=>{
+    const col=i%perRow, row=(i/perRow)|0;
+    g.fillText(w, 26+col*165, 76+row*34);
+  });
+  return c;
+}
+
+function show(canvas, caption){
+  const f=document.createElement('figure');
+  f.appendChild(canvas);
+  const cap=document.createElement('figcaption'); cap.textContent=caption;
+  f.appendChild(cap);
+  document.getElementById('canvases').appendChild(f);
+}
+function dataOf(c){ return c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height); }
+
+/* ---------------- run ---------------- */
+setTimeout(() => {
+  out.push('<h2>solver</h2>');
+  const t = Sudoku.solve(PUZZLE.map(r=>r.slice()));
+  log(`sudoku solver: ${t.status} ${t.timeMs.toFixed(2)}ms row1=${t.solution?t.solution[0].join(''):'—'}`,
+      t.status==='ok' && t.solution[0].join('')==='534678912' ? 'pass':'fail');
+
+  out.push('<h2>sudoku scan — clean vs photographed</h2>');
+  [
+    ['400 34px "Times New Roman", serif', {tiltDeg:0, shadow:false, noise:false}, 'clean'],
+    ['400 34px Arial, sans-serif',        {tiltDeg:3.5},  'tilt 3.5° + shadow + noise'],
+    ['700 34px Verdana, sans-serif',      {tiltDeg:-5},   'tilt −5° + shadow + noise'],
+    ['400 34px "Courier New", monospace', {tiltDeg:2},    'tilt 2° + shadow + noise']
+  ].forEach(([font, cam, label], i) => {
+    const page = drawSudokuPage(font, false);
+    const shot = photograph(page.canvas, cam);
+    if(i<2) show(shot, 'sudoku · '+label);
+    const res = Scan.sudoku(dataOf(shot));
+    if(!res.ok){ log(`sudoku[${label}] FAILED: ${res.reason}`, 'fail'); return; }
+    let right=0, wrong=0, missed=0, extra=0;
+    for(let r=0;r<9;r++) for(let c=0;c<9;c++){
+      const want=PUZZLE[r][c], got=res.grid[r][c];
+      if(want && got===want) right++;
+      else if(want && got) wrong++;
+      else if(want) missed++;
+      else if(got) extra++;
+    }
+    const pct=Math.round(right/30*100);
+    log(`sudoku[${label}] → ${right}/30 (${pct}%) wrong ${wrong} missed ${missed} false ${extra} · ${res.timeMs.toFixed(0)}ms`,
+        grade(pct,90,75));
+  });
+
+  out.push('<h2>sudoku already part-solved in pen</h2>');
+  {
+    const page = drawSudokuPage('400 34px "Times New Roman", serif', true);
+    const shot = photograph(page.canvas, {tiltDeg:2});
+    show(shot, 'sudoku · 6 cells in pen + pencil notes');
+    const res = Scan.sudoku(dataOf(shot));
+    if(!res.ok) log('part-solved sudoku FAILED: '+res.reason, 'fail');
+    else {
+      let printedRight=0, handRight=0, noteFalse=0;
+      for(let r=0;r<9;r++) for(let c=0;c<9;c++){
+        if(PUZZLE[r][c] && res.grid[r][c]===PUZZLE[r][c]) printedRight++;
+      }
+      page.solved.forEach(([r,c,v]) => { if(res.grid[r][c]===v) handRight++; });
+      [[6,0],[6,2],[7,1]].forEach(([r,c]) => { if(res.grid[r][c]) noteFalse++; });
+      log(`printed clues ${printedRight}/30 (${Math.round(printedRight/30*100)}%)`, grade(printedRight/30*100,90,75));
+      log(`handwritten cells ${handRight}/${page.solved.length} read`, grade(handRight/page.solved.length*100,66,33));
+      log(`pencil candidate notes wrongly read as clues: ${noteFalse}/3`, noteFalse===0?'pass':'fail');
+    }
+  }
+
+  out.push('<h2>word search grid — full page, tilted, with pen circles</h2>');
+  [
+    [{}, {tiltDeg:0, shadow:false, noise:false}, 'clean page (title + bank in frame)'],
+    [{}, {tiltDeg:4}, 'tilt 4° + shadow + noise'],
+    [{circled:true}, {tiltDeg:-3}, 'tilt −3° + 3 words ringed in pen'],
+    [{font:'400 27px "Courier New", monospace'}, {tiltDeg:2.5}, 'monospace, tilt 2.5°']
+  ].forEach(([pageOpts, cam, label], i) => {
+    const page = drawWordSearchPage(pageOpts);
+    const shot = photograph(page, cam);
+    if(i>=1 && i<=2) show(shot, 'word search · '+label);
+    const res = Scan.wordsearch(dataOf(shot));
+    if(!res.ok){ log(`wordsearch[${label}] FAILED: ${res.reason}`, 'fail'); return; }
+    const sizeOk = res.rows===WS_ROWS.length && res.cols===WS_ROWS[0].length;
+    let right=0, total=0;
+    for(let r=0;r<Math.min(res.rows,WS_ROWS.length);r++)
+      for(let c=0;c<Math.min(res.cols,WS_ROWS[r].length);c++){
+        total++; if(res.grid[r][c]===WS_ROWS[r][c]) right++;
+      }
+    const pct = total?Math.round(right/total*100):0;
+    log(`wordsearch[${label}] → ${res.rows}×${res.cols} ${sizeOk?'✓':'✗ (want '+WS_ROWS.length+'×'+WS_ROWS[0].length+')'} · letters ${right}/${total} (${pct}%) · ${res.timeMs.toFixed(0)}ms`,
+        sizeOk ? grade(pct,90,70) : 'fail');
+    if(!sizeOk || pct<90) log('   read: ' + res.grid.map(r=>r.join('')).join(' | '));
+    // does it still solve end to end?
+    const solved = WordSearch.solve(res.grid, WS_WORDS, res.conf);
+    log(`   → finder: ${solved.found.length}/${WS_WORDS.length-1} real words (missing: ${solved.missing.join(', ')||'none'})`,
+        solved.found.length>=WS_WORDS.length-1 ? 'pass' : solved.found.length>=8 ? 'warn':'fail');
+  });
+
+  out.push('<h2>word bank photo</h2>');
+  {
+    const shot = photograph(drawWordBankPage(), {tiltDeg:2.5});
+    show(shot, 'word bank · tilt 2.5°');
+    const res = Scan.wordbank(dataOf(shot));
+    if(!res.ok) log('wordbank FAILED: '+res.reason, 'fail');
+    else {
+      const got = res.words.map(w=>w.text.toUpperCase());
+      const hit = WS_WORDS.filter(w => got.indexOf(w)>=0);
+      log(`wordbank → ${res.words.length} tokens, ${hit.length}/${WS_WORDS.length} exact · ${res.timeMs.toFixed(0)}ms`,
+          grade(hit.length/WS_WORDS.length*100, 85, 60));
+      log('   read: ' + got.join(' '));
+      const miss = WS_WORDS.filter(w => got.indexOf(w)<0);
+      if(miss.length) log('   missed: ' + miss.join(', '));
+    }
+  }
+
+  out.push('<h2>finder</h2>');
+  const f = WordSearch.solve(WS_ROWS, WS_WORDS);
+  log(`finder → ${f.found.length} found, missing ${f.missing.join(', ')||'none'} · ${f.timeMs.toFixed(2)}ms`,
+      f.found.length===WS_WORDS.length-1 && f.missing.length===1 ? 'pass':'fail');
+  const holed = WS_ROWS.map((r,i)=> i===1 ? r.slice(0,3)+'?'+r.slice(4) : r);
+  const f2 = WordSearch.solve(holed, ['TREE']);
+  log(`finder with a hole in TREE → ${f2.found.length?'found (fuzzy '+f2.found[0].fuzzy+')':'missed'}`,
+      f2.found.length?'pass':'fail');
+
+  out.push(failures ? `\n<span class="fail">${failures} failing check(s)</span>` : '\n<span class="pass">all checks passed</span>');
+  document.getElementById('out').innerHTML = out.join('\n');
+}, 50);
+</script>
+</body>
+</html>

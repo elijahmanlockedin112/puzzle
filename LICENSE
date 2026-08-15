@@ -1,0 +1,50 @@
+Puzzle Solver+ — Personal Use License
+Copyright (c) 2026 elijahmanlockedin112 (https://github.com/elijahmanlockedin112)
+All rights reserved.
+
+This is source-available software, NOT open source. The source is published so that
+anyone may read it, learn from it, and run it. It is not published for reuse.
+
+
+YOU MAY
+
+  1. View, read, and study the source code.
+  2. Download and run the software on devices you own or control, for your own
+     personal, non-commercial use.
+  3. Make private modifications for your own personal use on your own devices.
+  4. Quote short excerpts of the code for the purpose of commentary, teaching,
+     review, or reporting a bug, with attribution to this project.
+
+
+YOU MAY NOT, without prior written permission from the copyright holder
+
+  1. Copy, republish, mirror, upload, or otherwise redistribute this software or any
+     part of it, whether modified or unmodified, in source or compiled form.
+  2. Publish or distribute derivative works, forks, ports, or translations, including
+     reimplementations that copy this code.
+  3. Sell, license, sublicense, rent, or otherwise commercially exploit this software
+     or any part of it, or include it in any product or service offered to others,
+     whether or not for a fee.
+  4. Use this software or any part of it to train, fine-tune, or evaluate a machine
+     learning model, or include it in any dataset assembled for that purpose.
+  5. Remove or alter this license, the copyright notice, or any attribution.
+
+Using GitHub's own fork button to propose a change back to this repository is
+permitted. Keeping a public fork for any other purpose is not.
+
+Permission for anything outside the terms above may be granted, but must be asked for
+and given in writing first.
+
+
+NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+OR OTHER DEALINGS IN THE SOFTWARE.
+
+Puzzle Solver+ solves puzzles you supply. The puzzles themselves, and any published
+puzzle you photograph, remain the property of whoever holds their copyright; this
+license grants no rights to any such material.
