@@ -2,6 +2,10 @@
 
 **Point your camera at a puzzle. It solves it.**
 
+### ▶ [elijahmanlockedin112.github.io/puzzle](https://elijahmanlockedin112.github.io/puzzle/)
+
+Open that on a phone and scan something. Nothing to install, nothing to sign into.
+
 Everything — grid detection, character recognition, and the solvers — runs on the
 device. No account, no backend, no API keys, no network calls of any kind. Open it
 on a plane and it still works.
@@ -21,6 +25,9 @@ found are filtered out before the letters are read.
 
 ## Running it
 
+The published page above is the easy route — it's plain static files on GitHub Pages,
+served over HTTPS, which is all the camera needs. Everything below is for hacking on it.
+
 ```bash
 serve.bat
 ```
@@ -32,7 +39,9 @@ exists **only** because browsers require a secure context for camera access, and
 You can also just double-click `index.html`. Everything works except the live camera;
 use the **🖼️ Photo** button instead.
 
-### On your phone
+### On your phone, from your own machine
+
+Only needed if you're testing an unpushed change — otherwise just open the live page.
 
 ```bash
 phone.bat

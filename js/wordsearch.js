@@ -227,15 +227,34 @@ const WordSearch = (function () {
       return b.res <= 0.35 && r >= run.start && r < run.start + run.len;
     });
     if (seed.length >= 20) {
-      fit = latticeFit(seed, mh);
-      assignToLattice(blobs, fit);
-      o = occupancy(blobs, 0.4);
-      if (!o) return { error: 'no-lattice', grid: [], conf: [] };
-      run = pickBand(o.occ, 0.18, 0.7) || run;
+      const fineFit = latticeFit(seed, mh);
+      assignToLattice(blobs, fineFit);
+      const fineOcc = occupancy(blobs, 0.4);
+      const fineRun = fineOcc && pickBand(fineOcc.occ, 0.18, 0.7);
+      if (fineOcc && fineRun) {
+        // Adopt the refined lattice and its band together — the band's indices are
+        // only meaningful against the occupancy grid they were measured on.
+        fit = fineFit; o = fineOcc; run = fineRun;
+      } else {
+        assignToLattice(blobs, fit);   // fine pass didn't hold up; restore the coarse one
+      }
     }
 
-    const rowRun = run;
-    if (rowRun.start + rowRun.len > o.R) return { error: 'no-grid-rows', grid: [], conf: [] };
+    /* Trim the edges of the band. A real grid row has a blob in essentially every
+       slot even where the reader can't name the letter; a word-bank line that
+       happened to clear the gate is patchy. Only the ends are considered, so an
+       interior row with a genuine gap is never dropped. */
+    let from = run.start, to = run.start + run.len - 1;
+    const fillOf = i => o.occ[i].filter(Boolean).length;
+    const typical = Vision.median(
+      o.occ.slice(run.start, run.start + run.len).map(s => s.filter(Boolean).length)
+    );
+    while (to > from && fillOf(to) < typical * 0.9) to--;
+    while (from < to && fillOf(from) < typical * 0.9) from++;
+    const rowRun = { start: from, len: to - from + 1 };
+    if (rowRun.len < 3 || rowRun.start + rowRun.len > o.R) {
+      return { error: 'no-grid-rows', grid: [], conf: [] };
+    }
     const band = o.occ.slice(rowRun.start, rowRun.start + rowRun.len);
 
     const colScores = [];
